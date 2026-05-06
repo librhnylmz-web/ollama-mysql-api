@@ -4,5 +4,6 @@
   "model": "llama3.2:3b",
   "default_database": "demo_ai",
   "max_history_items": 5,
-  "max_schema_tables": 10
+  "max_schema_tables": 10,
+  "deneme": 77
 }
