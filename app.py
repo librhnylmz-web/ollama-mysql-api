@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 import requests
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, Response
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -44,201 +44,419 @@ HTML = """
 <html>
 <head>
   <meta charset="utf-8">
-  <title>MySQL + Ollama Chatbot</title>
+  <title>Ollama MySQL IRC Chat</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fb;
-      margin: 0;
-      padding: 0;
+    :root {
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --line: #253047;
+      --text: #d1d5db;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --blue: #60a5fa;
+      --yellow: #facc15;
+      --red: #fb7185;
+      --input: #020617;
     }
 
-    .container {
-      max-width: 900px;
-      margin: 40px auto;
-      background: white;
-      border-radius: 14px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Consolas, Monaco, "Courier New", monospace;
+      background: #020617;
+      color: var(--text);
+      height: 100vh;
       overflow: hidden;
     }
 
-    .header {
-      background: #111827;
-      color: white;
-      padding: 18px 24px;
+    .window {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--bg);
     }
 
-    .header h1 {
-      margin: 0;
-      font-size: 22px;
-    }
-
-    .header p {
-      margin: 6px 0 0 0;
-      color: #cbd5e1;
+    .titlebar {
+      background: #020617;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
       font-size: 14px;
     }
 
-    .chat {
-      height: 520px;
-      overflow-y: auto;
-      padding: 24px;
-      background: #f8fafc;
+    .title-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    .msg {
-      margin-bottom: 16px;
-      max-width: 78%;
-      padding: 12px 14px;
-      border-radius: 12px;
-      line-height: 1.4;
-      white-space: pre-wrap;
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 12px var(--green);
     }
 
-    .user {
-      background: #2563eb;
+    .title {
       color: white;
-      margin-left: auto;
-    }
-
-    .bot {
-      background: white;
-      color: #111827;
-      border: 1px solid #e5e7eb;
+      font-weight: bold;
     }
 
     .meta {
-      font-size: 12px;
-      color: #6b7280;
-      margin-top: 8px;
-      border-top: 1px solid #e5e7eb;
-      padding-top: 8px;
-      white-space: pre-wrap;
+      color: #cbd5e1;
     }
 
-    .input-area {
+    .layout {
+      display: grid;
+      grid-template-columns: 272px 1fr;
+      min-height: 0;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      padding: 18px 14px;
+      overflow-y: auto;
+    }
+
+    .side-title {
+      color: var(--yellow);
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .channel {
+      padding: 8px 0;
+      color: #cbd5e1;
+      font-size: 17px;
+    }
+
+    .channel.active {
+      color: var(--green);
+      font-weight: bold;
+    }
+
+    .info-box {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-box b {
+      color: #a5b4fc;
+    }
+
+    .chat {
+      background: #020617;
+      padding: 18px;
+      overflow-y: auto;
+      min-height: 0;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .line {
       display: flex;
       gap: 10px;
-      padding: 16px;
-      border-top: 1px solid #e5e7eb;
-      background: white;
+      padding: 3px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .time {
+      color: #64748b;
+      flex: 0 0 auto;
+    }
+
+    .nick {
+      flex: 0 0 auto;
+      font-weight: bold;
+    }
+
+    .nick.user {
+      color: var(--blue);
+    }
+
+    .nick.bot {
+      color: var(--green);
+    }
+
+    .nick.system {
+      color: var(--yellow);
+    }
+
+    .nick.error {
+      color: var(--red);
+    }
+
+    .message {
+      color: var(--text);
+    }
+
+    .sql {
+      color: #a5b4fc;
+      font-size: 13px;
+      margin-left: 138px;
+      padding: 5px 0 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .inputbar {
+      border-top: 1px solid var(--line);
+      background: #020617;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .prompt {
+      color: var(--green);
+      font-weight: bold;
+      font-size: 16px;
+      flex: 0 0 auto;
     }
 
     input {
       flex: 1;
-      padding: 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 10px;
-      font-size: 15px;
+      background: var(--input);
+      border: 1px solid #3b82f6;
+      color: var(--text);
+      padding: 13px 14px;
+      font-family: inherit;
+      font-size: 16px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 1px var(--blue);
     }
 
     button {
-      padding: 12px 18px;
-      border: none;
-      border-radius: 10px;
-      background: #111827;
-      color: white;
-      cursor: pointer;
+      background: #1f2937;
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 13px 18px;
+      font-family: inherit;
       font-size: 15px;
+      cursor: pointer;
     }
 
     button:hover {
-      background: #374151;
+      background: #334155;
     }
 
-    .small-button {
-      background: #6b7280;
-    }
-
-    .small-button:hover {
-      background: #4b5563;
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>MySQL + Ollama Chatbot</h1>
-      <p>Model: {{ model }} | Database: {{ database }}</p>
+  <div class="window">
+    <div class="titlebar">
+      <div class="title-left">
+        <span class="dot"></span>
+        <span class="title">#mysql-ollama</span>
+        <span class="meta">local IRC-style database assistant</span>
+      </div>
+      <div class="meta">model={{ model }} | db={{ database }}</div>
     </div>
 
-    <div id="chat" class="chat"></div>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-title">Channels</div>
+        <div class="channel active">#mysql-ollama</div>
+        <div class="channel">#demo_ai</div>
+        <div class="channel">#mcp-server</div>
 
-    <div class="input-area">
-      <input id="message" placeholder="Ask something, e.g. Can you list our customers?" autofocus />
-      <button onclick="sendMessage()">Send</button>
-      <button class="small-button" onclick="clearChat()">Clear</button>
+        <div class="info-box">
+          <div><b>Flow</b></div>
+          <div>User → Flask → Ollama → MCP → MySQL</div>
+          <br>
+          <div><b>Examples</b></div>
+          <div>How many customers?</div>
+          <div>Who bought Wireless Mouse?</div>
+          <div>Total revenue?</div>
+        </div>
+      </aside>
+
+      <main id="chat" class="chat"></main>
+    </div>
+
+    <div class="inputbar">
+      <span class="prompt">orhan@local&gt;</span>
+      <input id="message" placeholder="Ask a database question..." autofocus />
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+      <button onclick="clearChat()">Clear</button>
     </div>
   </div>
 
   <script>
     const chat = document.getElementById("chat");
     const input = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
 
-    function addMessage(text, type, meta = null) {
+    function now() {
+      const d = new Date();
+      return d.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function addLine(nick, text, type = "bot") {
+      const line = document.createElement("div");
+      line.className = "line";
+
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = "[" + now() + "]";
+
+      const nickEl = document.createElement("span");
+      nickEl.className = "nick " + type;
+      nickEl.textContent = "<" + nick + ">";
+
+      const msg = document.createElement("span");
+      msg.className = "message";
+      msg.textContent = text;
+
+      line.appendChild(time);
+      line.appendChild(nickEl);
+      line.appendChild(msg);
+
+      chat.appendChild(line);
+      chat.scrollTop = chat.scrollHeight;
+
+      return msg;
+    }
+
+    function addSql(sql) {
       const div = document.createElement("div");
-      div.className = "msg " + type;
-      div.textContent = text;
-
-      if (meta) {
-        const metaDiv = document.createElement("div");
-        metaDiv.className = "meta";
-        metaDiv.textContent = meta;
-        div.appendChild(metaDiv);
-      }
-
+      div.className = "sql";
+      div.textContent = "SQL> " + sql;
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
     }
 
     async function sendMessage() {
-      const text = input.value.trim();
-      if (!text) return;
+      const question = input.value.trim();
+      if (!question) return;
 
-      addMessage(text, "user");
       input.value = "";
+      sendBtn.disabled = true;
+      input.disabled = true;
 
-      addMessage("Thinking...", "bot");
+      addLine("you", question, "user");
+      const botMessage = addLine("dbbot", "working...", "bot");
 
       try {
-        const response = await fetch("/ask", {
+        const response = await fetch("/ask_stream", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ question: text })
+          body: JSON.stringify({ question })
         });
 
-        const data = await response.json();
-
-        chat.removeChild(chat.lastChild);
-
-        if (!data.success) {
-          let meta = "";
-          if (data.sql) {
-            meta = "Generated SQL:\\n" + data.sql;
-          }
-          addMessage("Error: " + data.error, "bot", meta);
+        if (!response.ok || !response.body) {
+          botMessage.textContent = "Request failed.";
           return;
         }
 
-        let meta = "";
-        if (data.sql) {
-          meta = "Generated SQL:\\n" + data.sql;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        let buffer = "";
+        let firstToken = true;
+
+        while (true) {
+          const { value, done } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            let data;
+
+            try {
+              data = JSON.parse(line);
+            } catch (err) {
+              console.error("Stream parse error:", err, line);
+              continue;
+            }
+
+            if (data.event === "status") {
+              botMessage.textContent = data.message;
+              chat.scrollTop = chat.scrollHeight;
+            }
+
+            if (data.event === "sql") {
+              addSql(data.sql);
+            }
+
+            if (data.event === "token") {
+              if (firstToken) {
+                botMessage.textContent = "";
+                firstToken = false;
+              }
+
+              botMessage.textContent += data.token;
+              chat.scrollTop = chat.scrollHeight;
+            }
+
+            if (data.event === "error") {
+              botMessage.textContent = "Error: " + data.error;
+
+              if (data.sql) {
+                addSql(data.sql);
+              }
+
+              chat.scrollTop = chat.scrollHeight;
+            }
+
+            if (data.event === "done") {
+              chat.scrollTop = chat.scrollHeight;
+            }
+          }
         }
 
-        addMessage(data.answer, "bot", meta);
-
       } catch (err) {
-        chat.removeChild(chat.lastChild);
-        addMessage("Request failed: " + err, "bot");
+        botMessage.textContent = "Error: " + err;
+      } finally {
+        sendBtn.disabled = false;
+        input.disabled = false;
+        input.focus();
       }
     }
 
     async function clearChat() {
       await fetch("/clear", { method: "POST" });
       chat.innerHTML = "";
-      addMessage("Chat history cleared.", "bot");
+      addLine("system", "Chat history cleared.", "system");
     }
 
     input.addEventListener("keydown", function(event) {
@@ -247,7 +465,8 @@ HTML = """
       }
     });
 
-    addMessage("Ready. Ask me about the demo_ai database.", "bot");
+    addLine("system", "Connected to #mysql-ollama.", "system");
+    addLine("system", "Ask a question about demo_ai database.", "system");
   </script>
 </body>
 </html>
@@ -290,6 +509,37 @@ def ollama(prompt):
     )
     response.raise_for_status()
     return response.json()["response"].strip()
+
+
+def ollama_stream(prompt):
+    print("\nStarting Ollama answer stream...", flush=True)
+
+    response = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": MODEL,
+            "prompt": prompt,
+            "stream": True,
+        },
+        stream=True,
+        timeout=120,
+    )
+    response.raise_for_status()
+
+    for line in response.iter_lines():
+        if not line:
+            continue
+
+        data = json.loads(line.decode("utf-8"))
+
+        if "response" in data:
+            token = data["response"]
+            print(token, end="", flush=True)
+            yield token
+
+        if data.get("done"):
+            print("\nOllama answer stream finished.", flush=True)
+            break
 
 
 def api_get(url, params=None):
@@ -340,19 +590,29 @@ def clean_sql(text):
     text = re.sub(r"^```\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
 
-    lines = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
+    lines = text.splitlines()
+
+    sql_lines = []
+    sql_started = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not stripped:
             continue
 
-        if line.lower().startswith(("select", "show", "describe", "desc", "explain")):
-            lines = [line]
-            break
+        if not sql_started:
+            if stripped.lower().startswith(("select", "show", "describe", "desc", "explain")):
+                sql_started = True
+                sql_lines.append(stripped)
+            continue
 
-        lines.append(line)
+        sql_lines.append(stripped)
 
-    text = " ".join(lines)
+    if sql_lines:
+        text = " ".join(sql_lines)
+    else:
+        text = text.replace("\n", " ").strip()
 
     if ";" in text:
         text = text.split(";")[0]
@@ -506,10 +766,10 @@ def generate_sql(question, database):
     return sql
 
 
-def summarize_answer(question, sql, result):
+def build_summary_prompt(question, sql, result):
     history_text = format_history_for_prompt()
 
-    prompt = render_template_file(
+    return render_template_file(
         ANSWER_SUMMARY_PROMPT,
         {
             "history_text": history_text,
@@ -519,34 +779,14 @@ def summarize_answer(question, sql, result):
         },
     )
 
-    return ollama(prompt)
 
-
-def answer_question(question, database):
-    sql = generate_sql(question, database)
-
-    if not is_safe_sql(sql):
-        return {
-            "success": False,
-            "error": "Blocked unsafe SQL by local guard.",
-            "sql": sql,
-        }
-
-    result = run_query(sql, database)
-
-    print("\nRaw API result:")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    answer = summarize_answer(question, sql, result)
-
-    add_to_history(question, sql, answer)
-
-    return {
-        "success": True,
-        "sql": sql,
-        "raw_result": result,
-        "answer": answer,
+def stream_event(event_name, payload):
+    data = {
+        "event": event_name,
+        **payload,
     }
+
+    return json.dumps(data, ensure_ascii=False) + "\n"
 
 
 @app.route("/")
@@ -558,52 +798,87 @@ def index():
     )
 
 
-@app.route("/ask", methods=["POST"])
-def ask():
-    try:
-        data = request.get_json(force=True)
-        question = data.get("question", "").strip()
+@app.route("/ask_stream", methods=["POST"])
+def ask_stream():
+    data = request.get_json(force=True)
+    question = data.get("question", "").strip()
 
+    def generate():
         if not question:
-            return jsonify(
+            yield stream_event("error", {"error": "Question is empty."})
+            return
+
+        sql = None
+        answer_parts = []
+
+        try:
+            yield stream_event("status", {"message": "Generating SQL..."})
+
+            sql = generate_sql(question, DEFAULT_DATABASE)
+
+            yield stream_event("sql", {"sql": sql})
+
+            if not is_safe_sql(sql):
+                yield stream_event(
+                    "error",
+                    {
+                        "error": "Blocked unsafe SQL by local guard.",
+                        "sql": sql,
+                    },
+                )
+                return
+
+            yield stream_event("status", {"message": "Running query through mysql-mcp-server..."})
+
+            result = run_query(sql, DEFAULT_DATABASE)
+
+            print("\nRaw API result:")
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+
+            yield stream_event("status", {"message": "Summarizing answer..."})
+
+            summary_prompt = build_summary_prompt(question, sql, result)
+
+            for token in ollama_stream(summary_prompt):
+                answer_parts.append(token)
+                yield stream_event("token", {"token": token})
+
+            final_answer = "".join(answer_parts).strip()
+            add_to_history(question, sql, final_answer)
+
+            yield stream_event("done", {"success": True})
+
+        except requests.exceptions.HTTPError as e:
+            error_text = str(e)
+
+            if e.response is not None:
+                error_text += " " + e.response.text
+
+            yield stream_event(
+                "error",
                 {
-                    "success": False,
-                    "error": "Question is empty.",
-                }
-            ), 400
+                    "error": error_text,
+                    "sql": sql,
+                },
+            )
 
-        response = answer_question(question, DEFAULT_DATABASE)
-        status_code = 200 if response.get("success") else 400
-        return jsonify(response), status_code
+        except Exception as e:
+            yield stream_event(
+                "error",
+                {
+                    "error": str(e),
+                    "sql": sql,
+                },
+            )
 
-    except requests.exceptions.ConnectionError as e:
-        return jsonify(
-            {
-                "success": False,
-                "error": f"Connection error. Check Ollama and mysql-mcp-server. {e}",
-            }
-        ), 500
-
-    except requests.exceptions.HTTPError as e:
-        error_text = str(e)
-
-        if e.response is not None:
-            error_text += " " + e.response.text
-
-        return jsonify(
-            {
-                "success": False,
-                "error": error_text,
-            }
-        ), 500
-
-    except Exception as e:
-        return jsonify(
-            {
-                "success": False,
-                "error": str(e),
-            }
-        ), 500
+    return Response(
+        generate(),
+        mimetype="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.route("/clear", methods=["POST"])
@@ -613,4 +888,4 @@ def clear():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True, threaded=True)

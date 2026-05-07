@@ -1,9 +1,10 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ollama MySQL MCP Chatbot</title>
+
   <style>
     body {
       margin: 0;
@@ -19,30 +20,42 @@
       padding: 48px 20px;
     }
 
-    .hero {
-      background: white;
-      border-radius: 18px;
-      padding: 40px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    .hero,
+    .section {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      margin-bottom: 28px;
     }
 
     h1 {
-      font-size: 42px;
-      line-height: 1.15;
+      font-size: 40px;
       margin: 0 0 16px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 24px;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
     }
 
     .subtitle {
       font-size: 19px;
       color: #4b5563;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
     .badges {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-bottom: 28px;
+      margin: 24px 0;
     }
 
     .badge {
@@ -51,13 +64,13 @@
       padding: 8px 12px;
       border-radius: 999px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: bold;
     }
 
     .buttons {
       display: flex;
-      gap: 12px;
       flex-wrap: wrap;
+      gap: 12px;
       margin-top: 24px;
     }
 
@@ -65,28 +78,15 @@
       display: inline-block;
       text-decoration: none;
       background: #111827;
-      color: white;
+      color: #ffffff;
       padding: 12px 18px;
       border-radius: 10px;
-      font-weight: 600;
+      font-weight: bold;
     }
 
     .button.secondary {
       background: #e5e7eb;
       color: #111827;
-    }
-
-    .section {
-      margin-top: 28px;
-      background: white;
-      border-radius: 16px;
-      padding: 28px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.05);
-    }
-
-    h2 {
-      margin-top: 0;
-      font-size: 24px;
     }
 
     .grid {
@@ -102,11 +102,6 @@
       background: #fafafa;
     }
 
-    .card h3 {
-      margin: 0 0 8px;
-      font-size: 18px;
-    }
-
     code {
       background: #f3f4f6;
       padding: 2px 6px;
@@ -114,18 +109,19 @@
     }
 
     pre {
-      overflow-x: auto;
       background: #111827;
       color: #f9fafb;
       padding: 16px;
       border-radius: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
     }
 
     .footer {
       color: #6b7280;
       text-align: center;
-      margin-top: 32px;
       font-size: 14px;
+      margin-top: 32px;
     }
   </style>
 </head>
@@ -134,9 +130,9 @@
   <main class="container">
     <section class="hero">
       <h1>Ollama MySQL MCP Chatbot</h1>
+
       <p class="subtitle">
-        A small local AI lab that connects Ollama, a MySQL MCP server, and a Flask chatbot
-        to ask natural language questions over a MySQL database.
+        A small local AI lab that connects Ollama, MySQL, mysql-mcp-server, and a Flask chatbot.
       </p>
 
       <div class="badges">
@@ -148,41 +144,50 @@
       </div>
 
       <p>
-        The project demonstrates how a local language model can generate SQL,
+        This project demonstrates how a local language model can generate SQL,
         send it through a read-only MySQL MCP API, and return a short answer through
-        a simple web chatbot.
+        a simple IRC-style web chatbot.
       </p>
 
       <div class="buttons">
-        <a class="button" href="https://github.com/librhnylmz-web/ollama-mysql-api">View on GitHub</a>
-        <a class="button secondary" href="#how-it-works">How it works</a>
+        <a class="button" href="https://github.com/librhnylmz-web/ollama-mysql-api">
+          View on GitHub
+        </a>
+        <a class="button secondary" href="#how-it-works">
+          How it works
+        </a>
       </div>
     </section>
 
     <section class="section" id="how-it-works">
       <h2>How it works</h2>
+
       <div class="grid">
         <div class="card">
           <h3>1. User asks</h3>
-          <p>The user asks a question in the Flask chatbot, such as <code>Who bought Wireless Mouse?</code></p>
+          <p>The user asks a database question in the Flask chatbot.</p>
         </div>
+
         <div class="card">
           <h3>2. Context is loaded</h3>
           <p>The app loads prompt files and business context from Markdown files.</p>
         </div>
+
         <div class="card">
           <h3>3. Ollama generates SQL</h3>
-          <p>A local Ollama model generates a safe SQL query based on schema and context.</p>
+          <p>A local Ollama model generates SQL based on schema and context.</p>
         </div>
+
         <div class="card">
           <h3>4. MCP runs query</h3>
-          <p>The query is sent to <code>mysql-mcp-server</code>, which talks to MySQL using a read-only user.</p>
+          <p>The SQL query is sent to mysql-mcp-server over HTTP.</p>
         </div>
       </div>
     </section>
 
     <section class="section">
       <h2>Architecture</h2>
+
       <pre>User
   ↓
 Flask Chatbot app.py
@@ -195,17 +200,37 @@ MySQL demo_ai database</pre>
     </section>
 
     <section class="section">
-      <h2>What this project shows</h2>
-      <ul>
-        <li>How to use Ollama as a local LLM for SQL generation.</li>
-        <li>How to expose MySQL safely through an MCP server.</li>
-        <li>How Markdown context files can explain business meaning to the model.</li>
-        <li>How a small Flask UI can turn the flow into a chatbot.</li>
-      </ul>
+      <h2>Project structure</h2>
+
+      <pre>ollama-mysql-api/
+├── app.py
+├── ask_db.py
+├── config.json
+├── requirements.txt
+├── prompts/
+│   ├── sql_generation.md
+│   └── answer_summary.md
+└── context/
+    └── demo_ai.md</pre>
+    </section>
+
+    <section class="section">
+      <h2>Python dependencies</h2>
+
+      <p>
+        Python dependencies are defined in <code>requirements.txt</code>.
+        The project currently uses Flask for the web UI and Requests for HTTP calls.
+      </p>
+
+      <pre>python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py</pre>
     </section>
 
     <section class="section">
       <h2>Example questions</h2>
+
       <pre>How many customers do I have?
 Who bought Wireless Mouse?
 What is my total revenue?
@@ -215,10 +240,13 @@ Who is my top buyer?</pre>
 
     <section class="section">
       <h2>Security notes</h2>
-      <p>
-        The project is designed for a local lab environment. MySQL should be accessed with a
-        read-only user. Secrets such as database passwords should not be committed to GitHub.
-      </p>
+
+      <ul>
+        <li>Use a read-only MySQL user.</li>
+        <li>Do not commit database passwords.</li>
+        <li>Do not expose mysql-mcp-server directly to the internet.</li>
+        <li>Use query timeout and row limits on the MCP server side.</li>
+      </ul>
     </section>
 
     <p class="footer">

@@ -107,6 +107,23 @@ Who is my top buyer?
 - Ollama
 - mysql-mcp-server Docker image
 
+## Python dependencies
+
+Python dependencies are listed in `requirements.txt`.
+
+```text
+flask
+requests
+```
+
+Install them with:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Running the Flask chatbot
 
 Start Ollama:
@@ -125,9 +142,13 @@ Start mysql-mcp-server separately with your own MySQL DSN.
 
 Then run the app:
 
+````md
+Then run the app:
+
 ```bash
 cd ollama-mysql-api
 source .venv/bin/activate
+pip install -r requirements.txt
 python app.py
 ```
 
