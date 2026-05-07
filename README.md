@@ -142,7 +142,7 @@ ollama pull llama3.2:3b
 Create and activate a virtual environment:
 
 ```bash
-cd /home/orhan/ollama-mysql-api
+cd ollama-mysql-api
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -191,7 +191,7 @@ The app uses the `/api/query` endpoint to execute database queries.
 Activate the virtual environment:
 
 ```bash
-cd /home/orhan/ollama-mysql-api
+cd ollama-mysql-api
 source .venv/bin/activate
 ```
 
@@ -210,7 +210,7 @@ http://127.0.0.1:5000
 ## Running the terminal chatbot
 
 ```bash
-cd /home/orhan/ollama-mysql-api
+cd ollama-mysql-api
 source .venv/bin/activate
 
 python ask_db.py
