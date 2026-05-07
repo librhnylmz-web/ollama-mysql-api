@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ollama MySQL IRC Chat</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar">
+      <div class="title-left">
+        <span class="dot"></span>
+        <span class="title">#mysql-ollama</span>
+        <span class="meta">local IRC-style database assistant</span>
+      </div>
+      <div class="meta">model={{ model }} | db={{ database }}</div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-title">Channels</div>
+        <div class="channel active">#mysql-ollama</div>
+        <div class="channel">#demo_ai</div>
+        <div class="channel">#mcp-server</div>
+
+        <div class="info-box">
+          <div><b>Flow</b></div>
+          <div>User → Flask → Ollama → MCP → MySQL</div>
+          <br>
+          <div><b>Examples</b></div>
+          <div>How many customers?</div>
+          <div>Who bought Wireless Mouse?</div>
+          <div>Total revenue?</div>
+        </div>
+
+        <div class="info-box">
+          <div><b>System status</b></div>
+          <div>Flask: <span id="health-flask">checking...</span></div>
+          <div>Ollama: <span id="health-ollama">checking...</span></div>
+          <div>MCP API: <span id="health-mcp">checking...</span></div>
+          <div>Tables: <span id="health-tables">checking...</span></div>
+        </div>
+
+        <div class="info-box">
+          <div><b>Schema</b></div>
+          <div id="schema-list" class="schema-list">loading...</div>
+        </div>
+      </aside>
+
+      <main id="chat" class="chat"></main>
+    </div>
+
+    <div class="inputbar">
+      <span class="prompt">orhan@local&gt;</span>
+      <input id="message" placeholder="Ask a database question..." autofocus />
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+      <button onclick="clearChat()">Clear</button>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

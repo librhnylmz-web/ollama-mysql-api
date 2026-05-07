@@ -1,0 +1,244 @@
+    :root {
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --line: #253047;
+      --text: #d1d5db;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --blue: #60a5fa;
+      --yellow: #facc15;
+      --red: #fb7185;
+      --input: #020617;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Consolas, Monaco, "Courier New", monospace;
+      background: #020617;
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .window {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--bg);
+    }
+
+    .titlebar {
+      background: #020617;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .title-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 12px var(--green);
+    }
+
+    .title {
+      color: white;
+      font-weight: bold;
+    }
+
+    .meta {
+      color: #cbd5e1;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 272px 1fr;
+      min-height: 0;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      padding: 18px 14px;
+      overflow-y: auto;
+    }
+
+    .side-title {
+      color: var(--yellow);
+      margin-bottom: 16px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .channel {
+      padding: 8px 0;
+      color: #cbd5e1;
+      font-size: 17px;
+    }
+
+    .channel.active {
+      color: var(--green);
+      font-weight: bold;
+    }
+
+    .info-box {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-box b {
+      color: #a5b4fc;
+    }
+
+        .schema-list {
+      margin-top: 8px;
+    }
+
+    .schema-table {
+      color: var(--green);
+      cursor: pointer;
+      padding: 2px 0;
+    }
+
+    .schema-table:hover {
+      color: var(--blue);
+    }
+
+    .schema-columns {
+      color: var(--muted);
+      font-size: 12px;
+      padding-left: 12px;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .schema-columns.open {
+      display: block;
+    }
+
+    .chat {
+      background: #020617;
+      padding: 18px;
+      overflow-y: auto;
+      min-height: 0;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .line {
+      display: flex;
+      gap: 10px;
+      padding: 3px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .time {
+      color: #64748b;
+      flex: 0 0 auto;
+    }
+
+    .nick {
+      flex: 0 0 auto;
+      font-weight: bold;
+    }
+
+    .nick.user {
+      color: var(--blue);
+    }
+
+    .nick.bot {
+      color: var(--green);
+    }
+
+    .nick.system {
+      color: var(--yellow);
+    }
+
+    .nick.error {
+      color: var(--red);
+    }
+
+    .message {
+      color: var(--text);
+    }
+
+    .sql {
+      color: #a5b4fc;
+      font-size: 13px;
+      margin-left: 138px;
+      padding: 5px 0 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .inputbar {
+      border-top: 1px solid var(--line);
+      background: #020617;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .prompt {
+      color: var(--green);
+      font-weight: bold;
+      font-size: 16px;
+      flex: 0 0 auto;
+    }
+
+    input {
+      flex: 1;
+      background: var(--input);
+      border: 1px solid #3b82f6;
+      color: var(--text);
+      padding: 13px 14px;
+      font-family: inherit;
+      font-size: 16px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 1px var(--blue);
+    }
+
+    button {
+      background: #1f2937;
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 13px 18px;
+      font-family: inherit;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #334155;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
