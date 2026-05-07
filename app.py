@@ -158,6 +158,32 @@ HTML = """
       color: #a5b4fc;
     }
 
+        .schema-list {
+      margin-top: 8px;
+    }
+
+    .schema-table {
+      color: var(--green);
+      cursor: pointer;
+      padding: 2px 0;
+    }
+
+    .schema-table:hover {
+      color: var(--blue);
+    }
+
+    .schema-columns {
+      color: var(--muted);
+      font-size: 12px;
+      padding-left: 12px;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .schema-columns.open {
+      display: block;
+    }
+
     .chat {
       background: #020617;
       padding: 18px;
@@ -301,6 +327,11 @@ HTML = """
           <div>MCP API: <span id="health-mcp">checking...</span></div>
           <div>Tables: <span id="health-tables">checking...</span></div>
         </div>
+
+        <div class="info-box">
+          <div><b>Schema</b></div>
+          <div id="schema-list" class="schema-list">loading...</div>
+        </div>
       </aside>
 
       <main id="chat" class="chat"></main>
@@ -327,7 +358,73 @@ HTML = """
         second: "2-digit"
       });
     }
+            function escapeText(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
 
+    function toggleSchemaColumns(id) {
+      const el = document.getElementById(id);
+
+      if (!el) {
+        return;
+      }
+
+      el.classList.toggle("open");
+    }
+
+    async function loadSchema() {
+      const container = document.getElementById("schema-list");
+
+      if (!container) {
+        return;
+      }
+
+      try {
+        const response = await fetch("/schema");
+        const data = await response.json();
+
+        if (!data.tables || data.tables.length === 0) {
+          container.textContent = "no tables found";
+          return;
+        }
+
+        container.innerHTML = "";
+
+        data.tables.forEach(function(table, index) {
+          const tableId = "schema-columns-" + index;
+
+          const tableEl = document.createElement("div");
+          tableEl.className = "schema-table";
+          tableEl.textContent = table.name;
+          tableEl.onclick = function() {
+            toggleSchemaColumns(tableId);
+          };
+
+          const columnsEl = document.createElement("div");
+          columnsEl.id = tableId;
+          columnsEl.className = "schema-columns";
+
+          if (!table.columns || table.columns.length === 0) {
+            columnsEl.textContent = "columns unavailable";
+          } else {
+            columnsEl.innerHTML = table.columns
+              .map(function(column) {
+                const typeText = column.type ? " " + column.type : "";
+                return escapeText(column.name + typeText);
+              })
+              .join("<br>");
+          }
+
+          container.appendChild(tableEl);
+          container.appendChild(columnsEl);
+        });
+      } catch (err) {
+        container.textContent = "schema unavailable";
+      }
+    }
         function setHealthText(id, text, ok) {
       const el = document.getElementById(id);
 
@@ -510,6 +607,7 @@ HTML = """
     addLine("system", "Ask a question about demo_ai database.", "system");
     loadHealth();
     setInterval(loadHealth, 30000);
+    loadSchema();
   </script>
 </body>
 </html>
@@ -903,6 +1001,70 @@ def health():
             },
             "ollama": ollama_health,
             "mcp": mcp_health,
+        }
+    )
+
+@app.route("/schema")
+def schema():
+    schema_context = build_schema_context(DEFAULT_DATABASE)
+
+    tables = []
+
+    for table_name, table_schema in schema_context.get("schemas", {}).items():
+        columns = []
+
+        def walk(value):
+            if isinstance(value, dict):
+                column_name = None
+                column_type = None
+
+                for key, item in value.items():
+                    lowered_key = key.lower()
+
+                    if lowered_key in ["field", "column", "column_name", "name"]:
+                        if isinstance(item, str):
+                            column_name = item
+
+                    if lowered_key in ["type", "data_type"]:
+                        if isinstance(item, str):
+                            column_type = item
+
+                if column_name:
+                    columns.append(
+                        {
+                            "name": column_name,
+                            "type": column_type or "",
+                        }
+                    )
+
+                for item in value.values():
+                    walk(item)
+
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+
+        walk(table_schema)
+
+        unique_columns = []
+        seen = set()
+
+        for column in columns:
+            if column["name"] not in seen:
+                unique_columns.append(column)
+                seen.add(column["name"])
+
+        tables.append(
+            {
+                "name": table_name,
+                "columns": unique_columns,
+            }
+        )
+
+    return jsonify(
+        {
+            "database": DEFAULT_DATABASE,
+            "tables": tables,
         }
     )
 
