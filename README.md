@@ -142,9 +142,6 @@ Start mysql-mcp-server separately with your own MySQL DSN.
 
 Then run the app:
 
-````md
-Then run the app:
-
 ```bash
 cd ollama-mysql-api
 source .venv/bin/activate
