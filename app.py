@@ -13,6 +13,8 @@ CONTEXT_DIR = BASE_DIR / "context"
 
 SQL_GENERATION_PROMPT = PROMPTS_DIR / "sql_generation.md"
 ANSWER_SUMMARY_PROMPT = PROMPTS_DIR / "answer_summary.md"
+INTENT_DETECTION_PROMPT = PROMPTS_DIR / "intent_detection.md"
+FOLLOWUP_ANSWER_PROMPT = PROMPTS_DIR / "followup_answer.md"
 
 conversation_history = []
 
@@ -323,6 +325,72 @@ def add_to_history(question, sql, answer):
         }
     )
 
+def clean_json_response(text):
+    text = text.strip()
+
+    text = re.sub(r"^```json\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^```\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end + 1]
+
+    return text.strip()
+
+
+def detect_intent(question):
+    history_text = format_history_for_prompt()
+
+    prompt = render_template_file(
+        INTENT_DETECTION_PROMPT,
+        {
+            "history_text": history_text,
+            "question": question,
+        },
+    )
+
+    try:
+        raw_response = ollama(prompt)
+        cleaned_response = clean_json_response(raw_response)
+        data = json.loads(cleaned_response)
+
+        return {
+            "needs_sql": bool(data.get("needs_sql", True)),
+            "reason": data.get("reason", ""),
+        }
+
+    except Exception as e:
+        print("\nIntent detection failed:")
+        print(str(e))
+
+        return {
+            "needs_sql": True,
+            "reason": "fallback to SQL because intent detection failed",
+        }
+
+
+def answer_followup(question):
+    history_text = format_history_for_prompt()
+
+    prompt = render_template_file(
+        FOLLOWUP_ANSWER_PROMPT,
+        {
+            "history_text": history_text,
+            "question": question,
+        },
+    )
+
+    answer = ollama(prompt).strip()
+
+    print("\nFollow-up answer:")
+    print(answer)
+
+    add_to_history(question, "NO_SQL", answer)
+
+    return answer
 
 def generate_sql(question, database):
     schema_context = build_schema_context(database)
@@ -499,26 +567,78 @@ def index():
         database=DEFAULT_DATABASE,
     )
 
+@app.route("/preview_sql", methods=["POST"])
+def preview_sql():
+    data = request.get_json(force=True)
+    question = data.get("question", "").strip()
 
+    if not question:
+        return jsonify(
+            {
+                "success": False,
+                "needs_sql": False,
+                "error": "Question is empty.",
+            }
+        ), 400
+
+    try:
+        intent = detect_intent(question)
+
+        if not intent["needs_sql"]:
+            answer = answer_followup(question)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "needs_sql": False,
+                    "answer": answer,
+                    "reason": intent.get("reason", ""),
+                }
+            )
+
+        sql = generate_sql(question, DEFAULT_DATABASE)
+        safe = is_safe_sql(sql)
+
+        return jsonify(
+            {
+                "success": safe,
+                "needs_sql": True,
+                "sql": sql,
+                "safe": safe,
+                "reason": intent.get("reason", ""),
+                "error": None if safe else "Blocked unsafe SQL by local guard.",
+            }
+        )
+
+    except Exception as e:
+        return jsonify(
+            {
+                "success": False,
+                "needs_sql": False,
+                "error": str(e),
+            }
+        ), 500
+
+@app.route("/ask_stream", methods=["POST"])
 @app.route("/ask_stream", methods=["POST"])
 def ask_stream():
     data = request.get_json(force=True)
     question = data.get("question", "").strip()
+    approved_sql = data.get("sql", "").strip()
 
     def generate():
         if not question:
             yield stream_event("error", {"error": "Question is empty."})
             return
 
-        sql = None
+        sql = approved_sql or None
         answer_parts = []
 
         try:
-            yield stream_event("status", {"message": "Generating SQL..."})
-
-            sql = generate_sql(question, DEFAULT_DATABASE)
-
-            yield stream_event("sql", {"sql": sql})
+            if not sql:
+                yield stream_event("status", {"message": "Generating SQL..."})
+                sql = generate_sql(question, DEFAULT_DATABASE)
+                yield stream_event("sql", {"sql": sql})
 
             if not is_safe_sql(sql):
                 yield stream_event(
@@ -530,7 +650,7 @@ def ask_stream():
                 )
                 return
 
-            yield stream_event("status", {"message": "Running query through mysql-mcp-server..."})
+            yield stream_event("status", {"message": "Running approved query through mysql-mcp-server..."})
 
             result = run_query(sql, DEFAULT_DATABASE)
 

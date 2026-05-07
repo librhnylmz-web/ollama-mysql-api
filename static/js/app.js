@@ -144,104 +144,177 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
-    async function sendMessage() {
-      const question = input.value.trim();
-      if (!question) return;
+    function addSqlApproval(question, sql, botMessage) {
+      const div = document.createElement("div");
+      div.className = "sql-approval";
 
-      input.value = "";
-      sendBtn.disabled = true;
-      input.disabled = true;
+      const title = document.createElement("div");
+      title.className = "sql-approval-title";
+      title.textContent = "Generated SQL. Review it before running:";
 
-      addLine("you", question, "user");
-      const botMessage = addLine("dbbot", "working...", "bot");
+      const pre = document.createElement("pre");
+      pre.textContent = sql;
 
-      try {
-        const response = await fetch("/ask_stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ question })
-        });
+      const button = document.createElement("button");
+      button.className = "run-query-btn";
+      button.textContent = "Run query";
 
-        if (!response.ok || !response.body) {
-          botMessage.textContent = "Request failed.";
-          return;
+      button.onclick = async function() {
+      button.disabled = true;
+      button.textContent = "Running...";
+      await runApprovedQuery(question, sql, botMessage);
+    };
+
+      div.appendChild(title);
+      div.appendChild(pre);
+      div.appendChild(button);
+
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = "";
+  sendBtn.disabled = true;
+  input.disabled = true;
+
+  addLine("you", question, "user");
+  const botMessage = addLine("dbbot", "Thinking...", "bot");
+
+  try {
+    const response = await fetch("/preview_sql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ question })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      botMessage.textContent = "Error: " + (data.error || "Request failed.");
+
+      if (data.sql) {
+        addSql(data.sql);
+      }
+
+      return;
+    }
+
+    if (data.needs_sql === false) {
+      botMessage.textContent = data.answer || "I could not answer this from the current context.";
+      chat.scrollTop = chat.scrollHeight;
+      return;
+    }
+
+    botMessage.textContent = "I generated a SQL query. Please review it before running.";
+    addSqlApproval(question, data.sql, botMessage);
+
+  } catch (err) {
+    botMessage.textContent = "Error: " + err;
+  } finally {
+    sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+async function runApprovedQuery(question, sql, botMessage) {
+  sendBtn.disabled = true;
+  input.disabled = true;
+  botMessage.textContent = "Running approved query...";
+
+  try {
+    const response = await fetch("/ask_stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ question, sql })
+    });
+
+    if (!response.ok || !response.body) {
+      botMessage.textContent = "Request failed.";
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    let buffer = "";
+    let firstToken = true;
+
+    while (true) {
+      const { value, done } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        let data;
+
+        try {
+          data = JSON.parse(line);
+        } catch (err) {
+          console.error("Stream parse error:", err, line);
+          continue;
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-
-        let buffer = "";
-        let firstToken = true;
-
-        while (true) {
-          const { value, done } = await reader.read();
-
-          if (done) {
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split("\\n");
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            let data;
-
-            try {
-              data = JSON.parse(line);
-            } catch (err) {
-              console.error("Stream parse error:", err, line);
-              continue;
-            }
-
-            if (data.event === "status") {
-              botMessage.textContent = data.message;
-              chat.scrollTop = chat.scrollHeight;
-            }
-
-            if (data.event === "sql") {
-              addSql(data.sql);
-            }
-
-            if (data.event === "token") {
-              if (firstToken) {
-                botMessage.textContent = "";
-                firstToken = false;
-              }
-
-              botMessage.textContent += data.token;
-              chat.scrollTop = chat.scrollHeight;
-            }
-
-            if (data.event === "error") {
-              botMessage.textContent = "Error: " + data.error;
-
-              if (data.sql) {
-                addSql(data.sql);
-              }
-
-              chat.scrollTop = chat.scrollHeight;
-            }
-
-            if (data.event === "done") {
-              chat.scrollTop = chat.scrollHeight;
-            }
-          }
+        if (data.event === "status") {
+          botMessage.textContent = data.message;
+          chat.scrollTop = chat.scrollHeight;
         }
 
-      } catch (err) {
-        botMessage.textContent = "Error: " + err;
-      } finally {
-        sendBtn.disabled = false;
-        input.disabled = false;
-        input.focus();
+        if (data.event === "sql") {
+          addSql(data.sql);
+        }
+
+        if (data.event === "token") {
+          if (firstToken) {
+            botMessage.textContent = "";
+            firstToken = false;
+          }
+
+          botMessage.textContent += data.token;
+          chat.scrollTop = chat.scrollHeight;
+        }
+
+        if (data.event === "error") {
+          botMessage.textContent = "Error: " + data.error;
+
+          if (data.sql) {
+            addSql(data.sql);
+          }
+
+          chat.scrollTop = chat.scrollHeight;
+        }
+
+        if (data.event === "done") {
+          chat.scrollTop = chat.scrollHeight;
+        }
       }
     }
+
+  } catch (err) {
+    botMessage.textContent = "Error: " + err;
+  } finally {
+    sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
 
     async function clearChat() {
       await fetch("/clear", { method: "POST" });
