@@ -147,6 +147,7 @@ def clean_sql(text):
 
 def is_safe_sql(sql):
     lowered = sql.lower().strip()
+    sql_without_final_semicolon = lowered[:-1] if lowered.endswith(";") else lowered
 
     allowed_prefixes = [
         "select",
@@ -177,12 +178,30 @@ def is_safe_sql(sql):
         "sleep",
         "benchmark",
         "load_file",
+        "get_lock",
+        "information_schema",
+        "performance_schema",
+        "mysql.",
+        "sys.",
+    ]
+
+    blocked_patterns = [
+        "--",
+        "/*",
+        "*/",
+        "#",
     ]
 
     if not any(lowered.startswith(prefix) for prefix in allowed_prefixes):
         return False
 
+    if ";" in sql_without_final_semicolon:
+        return False
+
     if any(word in lowered for word in blocked_words):
+        return False
+
+    if any(pattern in lowered for pattern in blocked_patterns):
         return False
 
     return True

@@ -293,6 +293,14 @@ HTML = """
           <div>Who bought Wireless Mouse?</div>
           <div>Total revenue?</div>
         </div>
+
+        <div class="info-box">
+          <div><b>System status</b></div>
+          <div>Flask: <span id="health-flask">checking...</span></div>
+          <div>Ollama: <span id="health-ollama">checking...</span></div>
+          <div>MCP API: <span id="health-mcp">checking...</span></div>
+          <div>Tables: <span id="health-tables">checking...</span></div>
+        </div>
       </aside>
 
       <main id="chat" class="chat"></main>
@@ -318,6 +326,39 @@ HTML = """
         minute: "2-digit",
         second: "2-digit"
       });
+    }
+
+        function setHealthText(id, text, ok) {
+      const el = document.getElementById(id);
+
+      if (!el) {
+        return;
+      }
+
+      el.textContent = text;
+      el.style.color = ok ? "var(--green)" : "var(--red)";
+    }
+
+    async function loadHealth() {
+      try {
+        const response = await fetch("/health");
+        const data = await response.json();
+
+        setHealthText("health-flask", data.flask.status, data.flask.status === "ok");
+        setHealthText("health-ollama", data.ollama.status, data.ollama.status === "ok");
+        setHealthText("health-mcp", data.mcp.status, data.mcp.status === "ok");
+
+        if (data.mcp.status === "ok") {
+          setHealthText("health-tables", String(data.mcp.table_count), true);
+        } else {
+          setHealthText("health-tables", "error", false);
+        }
+      } catch (err) {
+        setHealthText("health-flask", "error", false);
+        setHealthText("health-ollama", "unknown", false);
+        setHealthText("health-mcp", "unknown", false);
+        setHealthText("health-tables", "unknown", false);
+      }
     }
 
     function addLine(nick, text, type = "bot") {
@@ -467,6 +508,8 @@ HTML = """
 
     addLine("system", "Connected to #mysql-ollama.", "system");
     addLine("system", "Ask a question about demo_ai database.", "system");
+    loadHealth();
+    setInterval(loadHealth, 30000);
   </script>
 </body>
 </html>
@@ -622,6 +665,7 @@ def clean_sql(text):
 
 def is_safe_sql(sql):
     lowered = sql.lower().strip()
+    sql_without_final_semicolon = lowered[:-1] if lowered.endswith(";") else lowered
 
     allowed_prefixes = [
         "select",
@@ -653,15 +697,32 @@ def is_safe_sql(sql):
         "benchmark",
         "load_file",
         "get_lock",
+        "information_schema",
+        "performance_schema",
+        "mysql.",
+        "sys.",
+    ]
+
+    blocked_patterns = [
+        "--",
+        "/*",
+        "*/",
+        "#",
     ]
 
     if not any(lowered.startswith(prefix) for prefix in allowed_prefixes):
         return False
 
+    if ";" in sql_without_final_semicolon:
+        return False
+
     if any(word in lowered for word in blocked_words):
         return False
 
-    return True
+    if any(pattern in lowered for pattern in blocked_patterns):
+        return False
+
+    return True 
 
 
 def extract_table_names(tables_response):
@@ -788,6 +849,62 @@ def stream_event(event_name, payload):
 
     return json.dumps(data, ensure_ascii=False) + "\n"
 
+def check_ollama_health():
+    try:
+        ollama_base_url = OLLAMA_URL.replace("/api/generate", "")
+        response = requests.get(f"{ollama_base_url}/api/tags", timeout=5)
+        response.raise_for_status()
+
+        return {
+            "status": "ok",
+            "model": MODEL,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+        }
+
+
+def check_mcp_health():
+    try:
+        tables_response = get_tables(DEFAULT_DATABASE)
+        table_names = extract_table_names(tables_response)
+
+        return {
+            "status": "ok",
+            "database": DEFAULT_DATABASE,
+            "table_count": len(table_names),
+            "tables": table_names,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "database": DEFAULT_DATABASE,
+            "error": str(e),
+        }
+
+
+@app.route("/health")
+def health():
+    ollama_health = check_ollama_health()
+    mcp_health = check_mcp_health()
+
+    overall_status = "ok"
+
+    if ollama_health["status"] != "ok" or mcp_health["status"] != "ok":
+        overall_status = "error"
+
+    return jsonify(
+        {
+            "status": overall_status,
+            "flask": {
+                "status": "ok",
+            },
+            "ollama": ollama_health,
+            "mcp": mcp_health,
+        }
+    )
 
 @app.route("/")
 def index():
