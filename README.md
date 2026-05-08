@@ -144,7 +144,7 @@ This helps avoid generating SQL for follow-up questions like:
 
 ```text
 Can you explain this result?
-Bunu daha kısa söyler misin?
+Can you make this shorter?
 What does this mean?
 ```
 
@@ -288,7 +288,7 @@ Example:
 
 ```text
 How many customers are there?
-Kaç müşteri var?
+How many customers are there?
 Which customer spent the most money?
 ```
 
@@ -298,8 +298,8 @@ Example:
 
 ```text
 Can you explain this result?
-Bunu daha kısa söyler misin?
-Bu sonuç ne anlama geliyor?
+Can you make this shorter?
+What does this result mean?
 ```
 
 The app answers these questions using recent conversation history.
@@ -311,8 +311,7 @@ The assistant is instructed to answer in the same language as the user's questio
 Examples:
 
 ```text
-User: Kaç müşteri var?
-Assistant: 3 müşteri var.
+User: How many customers are there?
 
 User: How many customers are there?
 Assistant: There are 3 customers.
@@ -478,13 +477,13 @@ Each response is streamed line by line from Flask to the browser. This keeps the
 
 ```text
 How many customers are there?
-Kaç müşteri var?
+How many customers are there?
 Who bought Wireless Mouse?
 What is the total revenue?
 Show me the latest orders.
 Which customer spent the most money?
-Bunu daha kısa açıklar mısın?
-Bu sonuç ne anlama geliyor?
+Can you explain this more briefly?
+What does this result mean?
 ```
 
 ## Example context discovery command
@@ -497,7 +496,7 @@ After approving the generated context, you can ask questions like:
 
 ```text
 How many open support tickets are there?
-Kaç tane açık destek talebi var?
+How many open support tickets are there?
 Which team has the most high priority tickets?
 ```
 
