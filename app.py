@@ -429,6 +429,98 @@ def build_summary_prompt(question, sql, result):
         },
     )
 
+def is_safe_identifier(name):
+    return bool(re.fullmatch(r"[A-Za-z0-9_]+", name or ""))
+
+
+def ensure_table_exists(database, table):
+    if not is_safe_identifier(table):
+        return False
+
+    tables_response = get_tables(database)
+    table_names = extract_table_names(tables_response)
+
+    return table in table_names
+
+
+def build_context_discovery_prompt(database, table, schema, sample_rows):
+    return f"""
+You are helping to document a MySQL database for a local database chatbot.
+
+Database:
+{database}
+
+Table:
+{table}
+
+Table schema:
+{json.dumps(schema, indent=2, ensure_ascii=False)}
+
+Sample rows:
+{json.dumps(sample_rows, indent=2, ensure_ascii=False)}
+
+Task:
+Create a concise markdown section that explains the business meaning of this table.
+
+Rules:
+- Return only markdown.
+- Do not invent facts beyond the schema and sample rows.
+- Explain what the table probably represents.
+- Explain the meaning of important columns.
+- Add 5 useful example questions users could ask about this table.
+- Keep it practical and short.
+- Write in English.
+
+Markdown format:
+
+## Table: {table}
+
+Short business meaning.
+
+### Important columns
+
+- `column_name`: meaning
+
+### Example questions
+
+- question 1
+- question 2
+"""
+
+
+def discover_table_context(database, table):
+    if not ensure_table_exists(database, table):
+        raise ValueError(f"Table not found or unsafe table name: {table}")
+
+    schema = get_table_schema(database, table)
+    sample_rows = run_query(f"SELECT * FROM `{table}` LIMIT 5;", database)
+
+    prompt = build_context_discovery_prompt(
+        database=database,
+        table=table,
+        schema=schema,
+        sample_rows=sample_rows,
+    )
+
+    markdown = ollama(prompt).strip()
+
+    return {
+        "database": database,
+        "table": table,
+        "schema": schema,
+        "sample_rows": sample_rows,
+        "markdown": markdown,
+    }
+
+
+def append_context_to_file(database, markdown):
+    context_path = CONTEXT_DIR / f"{database}.md"
+
+    with open(context_path, "a", encoding="utf-8") as file:
+        file.write("\n\n")
+        file.write("<!-- discovered-context:start -->\n")
+        file.write(markdown.strip())
+        file.write("\n<!-- discovered-context:end -->\n")
 
 def stream_event(event_name, payload):
     data = {
@@ -702,6 +794,98 @@ def ask_stream():
         },
     )
 
+@app.route("/discover_context", methods=["POST"])
+def discover_context():
+    data = request.get_json(force=True)
+    table = data.get("table", "").strip()
+    database = data.get("database", DEFAULT_DATABASE).strip() or DEFAULT_DATABASE
+
+    if database != DEFAULT_DATABASE:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Only the default database is allowed in this demo.",
+            }
+        ), 400
+
+    if not table:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Table name is required.",
+            }
+        ), 400
+
+    try:
+        result = discover_table_context(database, table)
+
+        return jsonify(
+            {
+                "success": True,
+                "database": database,
+                "table": table,
+                "markdown": result["markdown"],
+                "sample_rows": result["sample_rows"],
+            }
+        )
+
+    except Exception as e:
+        return jsonify(
+            {
+                "success": False,
+                "error": str(e),
+            }
+        ), 500
+
+
+@app.route("/approve_context", methods=["POST"])
+def approve_context():
+    data = request.get_json(force=True)
+    table = data.get("table", "").strip()
+    markdown = data.get("markdown", "").strip()
+    database = data.get("database", DEFAULT_DATABASE).strip() or DEFAULT_DATABASE
+
+    if database != DEFAULT_DATABASE:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Only the default database is allowed in this demo.",
+            }
+        ), 400
+
+    if not table or not is_safe_identifier(table):
+        return jsonify(
+            {
+                "success": False,
+                "error": "Valid table name is required.",
+            }
+        ), 400
+
+    if not markdown:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Markdown content is required.",
+            }
+        ), 400
+
+    try:
+        append_context_to_file(database, markdown)
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Context for {table} was appended to context/{database}.md",
+            }
+        )
+
+    except Exception as e:
+        return jsonify(
+            {
+                "success": False,
+                "error": str(e),
+            }
+        ), 500
 
 @app.route("/clear", methods=["POST"])
 def clear():

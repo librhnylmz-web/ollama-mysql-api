@@ -171,6 +171,106 @@
 
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
+    }
+
+    function parseDiscoverCommand(question) {
+  const match = question.trim().match(/^\/discover\s+([A-Za-z0-9_]+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return match[1];
+}
+
+function addContextSuggestion(database, table, markdown, botMessage) {
+  const div = document.createElement("div");
+  div.className = "context-discovery";
+
+  const title = document.createElement("div");
+  title.className = "context-discovery-title";
+  title.textContent = "Generated context suggestion for table: " + table;
+
+  const pre = document.createElement("pre");
+  pre.textContent = markdown;
+
+  const button = document.createElement("button");
+  button.className = "approve-context-btn";
+  button.textContent = "Approve and save context";
+
+  button.onclick = async function() {
+    await approveDiscoveredContext(database, table, markdown, button, botMessage);
+  };
+
+  div.appendChild(title);
+  div.appendChild(pre);
+  div.appendChild(button);
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function discoverTableContext(table, botMessage) {
+  botMessage.textContent = "Discovering table context...";
+
+  try {
+    const response = await fetch("/discover_context", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ table })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      botMessage.textContent = "Context discovery failed: " + (data.error || "Unknown error.");
+      return;
+    }
+
+    botMessage.textContent = "Context suggestion generated. Please review it before saving.";
+    addContextSuggestion(data.database || "demo_ai", data.table, data.markdown, botMessage);
+
+  } catch (err) {
+    botMessage.textContent = "Error: " + err;
+  }
+}
+
+async function approveDiscoveredContext(database, table, markdown, button, botMessage) {
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    const response = await fetch("/approve_context", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        database,
+        table,
+        markdown
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      button.disabled = false;
+      button.textContent = "Approve and save context";
+      botMessage.textContent = "Save failed: " + (data.error || "Unknown error.");
+      return;
+    }
+
+    button.textContent = "Saved";
+    botMessage.textContent = data.message || "Context saved.";
+
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Approve and save context";
+    botMessage.textContent = "Error: " + err;
+  }
 }
 
 async function sendMessage() {
@@ -183,6 +283,13 @@ async function sendMessage() {
 
   addLine("you", question, "user");
   const botMessage = addLine("dbbot", "Thinking...", "bot");
+
+  const discoverTable = parseDiscoverCommand(question);
+
+  if (discoverTable) {
+    await discoverTableContext(discoverTable, botMessage);
+    return;
+  }
 
   try {
     const response = await fetch("/preview_sql", {

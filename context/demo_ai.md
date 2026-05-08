@@ -52,3 +52,28 @@ Business rules:
 - Revenue means SUM(quantity * unit_price)
 - Best-selling product means the product with the highest SUM(quantity)
 - Top buyer means the buyer with the highest SUM(quantity * unit_price)
+
+<!-- discovered-context:start -->
+## Table: support_tickets
+
+This table represents the database of support tickets managed by a company, capturing details such as customer information, issue descriptions, priority levels, status, and handling team.
+
+### Important columns
+
+- `id`: A unique identifier for each ticket.
+- `customer_name`: The name of the person who submitted the ticket.
+- `customer_city`: The city where the customer resides.
+- `subject`: A brief description of the problem or issue raised in the ticket.
+- `priority`: An indication of how urgent the issue is (e.g., high, medium, low).
+- `status`: The current state of the ticket (e.g., open, resolved, closed).
+- `created_at`: The date and time when the ticket was created.
+- `resolved_at`: The date and time when the ticket was last updated to indicate resolution or closure.
+
+### Example questions
+
+- What is the status of the ticket with ID 2?
+- How many tickets have been assigned to the "Customer Support" team?
+- What are the latest statuses for all open tickets created in May?
+- Which city has submitted the most support tickets this year?
+- Can you provide details on a specific ticket, such as Ticket ID 5?
+<!-- discovered-context:end -->
